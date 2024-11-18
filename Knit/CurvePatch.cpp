@@ -182,6 +182,9 @@ void BuildUnitPatch() {
 
 CurvePatch LoadCurvePatch(const std::string& filename) {
   std::ifstream in(filename);
+  if (!in.good()) {
+    return CurvePatch();
+  }
   CurvePatch curves;
   size_t numCurves;
   std::string token;

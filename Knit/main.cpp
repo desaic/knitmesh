@@ -380,7 +380,7 @@ int main(int argc, char** argv) {
   ComputeVertNormals(hem);
   //SaveLabeledMeshObj("F:/meshes/stitch/labeled.obj", hem);
   auto curves =
-      LoadCurvePatch("F:/github/stitchMeshFork/rewrite/Data/stitchTile.txt");
+      LoadCurvePatch("F:/github/knitmesh/Data/stitchTile.txt");
   FillInGaps(curves, 0.2);
   CurvePatch scaled = ConvertCurvesToNaturalCoordinates(curves);
   SaveCurvePatch("F:/meshes/stitch/scaled_patch.txt", scaled);
