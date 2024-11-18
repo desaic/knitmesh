@@ -1,0 +1,16 @@
+cmake_minimum_required(VERSION 3.16)
+set(BIN "knit")
+PROJECT (knit)
+set(CMAKE_CXX_STANDARD 20)
+add_subdirectory("../Math" "Math")
+add_subdirectory("../Mesh" "Mesh")
+add_subdirectory("../ImageIO" "ImageIO")
+
+include_directories(.)
+FILE(GLOB EXE_SRC "*.cpp" "*.c")
+include_directories("../Math/inc/")
+include_directories("../Mesh/inc")
+include_directories("../ImageIO")
+add_executable(${BIN} ${EXE_SRC} resource/icons.rc)
+
+target_link_libraries(${BIN} ImageIO Mesh MathLib)
