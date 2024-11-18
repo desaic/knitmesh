@@ -385,6 +385,8 @@ int main(int argc, char** argv) {
   CurvePatch scaled = ConvertCurvesToNaturalCoordinates(curves);
   SaveCurvePatch("F:/meshes/stitch/scaled_patch.txt", scaled);
   SaveCurvePatchObj("F:/meshes/stitch/scaled_patch.obj", scaled);
-  PutCurvesOnLabeledMesh(scaled, hem);
+
+  std::vector<CurvePatch> meshCurves = PutCurvesOnLabeledMesh(scaled, hem);
+
   return 0;
 }
