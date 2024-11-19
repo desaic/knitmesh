@@ -311,7 +311,7 @@ std::vector<CurvePatch> PutCurvesOnLabeledMesh(const CurvePatch&patch,
   const HalfEdgeMesh &hem) {
   std::vector<CurvePatch> faceCurves(hem.NumFaces());
 
-  std::ofstream dout("F:/meshes/stitch/debugPoints.obj");
+  std::ofstream dout("C:/meshes/stitch/debugPoints.obj");
   for (size_t i = 0; i < hem.NumFaces(); i++) {
     Quad quad;
     const PolyFace& face = hem.F(i);
@@ -380,12 +380,12 @@ int main(int argc, char** argv) {
   ComputeVertNormals(hem);
   //SaveLabeledMeshObj("F:/meshes/stitch/labeled.obj", hem);
   auto curves =
-      LoadCurvePatch("F:/github/knitmesh/Data/stitchTile.txt");
+      LoadCurvePatch("C:/github/knitmesh/Data/stitchTile.txt");
   FillInGaps(curves, 0.2);
   CurvePatch scaled = ConvertCurvesToNaturalCoordinates(curves);
-  SaveCurvePatch("F:/meshes/stitch/scaled_patch.txt", scaled);
-  SaveCurvePatchObj("F:/meshes/stitch/scaled_patch.obj", scaled);
-
+  SaveCurvePatch("C:/meshes/stitch/scaled_patch.txt", scaled);
+  SaveCurvePatchObj("C:/meshes/stitch/scaled_patch.obj", scaled);
+  std::vector<PatchModifier> mods = GeneratePatchModifiers(scaled);
   std::vector<CurvePatch> meshCurves = PutCurvesOnLabeledMesh(scaled, hem);
 
   return 0;

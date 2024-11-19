@@ -549,3 +549,13 @@ void FillInGaps(CurvePatch& patch, float maxDist) {
     patch[c] = newCurve;
   }
 }
+
+void PatchModifier::Apply(CurvePatch& curves) {
+
+}
+
+std::vector<PatchModifier> GeneratePatchModifiers(const CurvePatch& curves) {
+  std::vector<PatchModifier> mods;
+
+  return mods;
+}

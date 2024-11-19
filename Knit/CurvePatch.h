@@ -40,4 +40,4 @@ public:
   std::vector<ModData> mods;
 };
 
-std::vector<PatchModifier> GeneratePatchModifiers(const CurvePatch& curves) {}
+std::vector<PatchModifier> GeneratePatchModifiers(const CurvePatch& curves);
