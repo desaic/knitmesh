@@ -380,11 +380,11 @@ int main(int argc, char** argv) {
   ComputeVertNormals(hem);
   //SaveLabeledMeshObj("F:/meshes/stitch/labeled.obj", hem);
   auto curves =
-      LoadCurvePatch("C:/github/knitmesh/Data/stitchTile.txt");
+      LoadCurvePatch("F:/github/knitmesh/Data/stitchTile.txt");
   FillInGaps(curves, 0.2);
   CurvePatch scaled = ConvertCurvesToNaturalCoordinates(curves);
-  SaveCurvePatch("C:/meshes/stitch/scaled_patch.txt", scaled);
-  SaveCurvePatchObj("C:/meshes/stitch/scaled_patch.obj", scaled);
+  SaveCurvePatch("F:/meshes/stitch/scaled_patch.txt", scaled);
+  SaveCurvePatchObj("F:/meshes/stitch/scaled_patch.obj", scaled);
   std::vector<PatchModifier> mods = GeneratePatchModifiers(scaled);
   std::vector<CurvePatch> meshCurves = PutCurvesOnLabeledMesh(scaled, hem);
 

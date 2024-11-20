@@ -40,4 +40,7 @@ public:
   std::vector<ModData> mods;
 };
 
+/// @brief 
+/// @param curves in reference cube [-1,1].
+/// @return 
 std::vector<PatchModifier> GeneratePatchModifiers(const CurvePatch& curves);

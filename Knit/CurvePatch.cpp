@@ -402,32 +402,39 @@ void MoveCurveEndPoint(std::vector<Vec3f>& curve, int endPointIndex,
   }
 }
 
-CurvePatch MakeTilable(const CurvePatch& patch, const BBox& tileBox) {
-  CurvePatch out(patch.size());
-  // find matching pairs of curve beginnings and ends
-  struct EndPoint {
-    int curveId = 0;
-    int pointId = 0;
-    int boundary = 0;
-    Vec3f pos;
-  };
+struct EndPoint {
+  int curveId = 0;
+  int pointId = 0;
+  int boundary = 0;
+  Vec3f pos;
+};
 
+//find which side each endpoint is on.
+std::vector<EndPoint> FindEndPointSides(const CurvePatch&patch, const BBox & box) {
   std::vector<EndPoint> ends(2 * patch.size());
   for (size_t i = 0; i < patch.size(); i++) {
     std::vector<Vec3f> newCurve;
     Vec3f start = patch[i][0];
     Vec3f end = patch[i].back();
-    ends[2 * i].boundary = FindEndpointBoundary(start, tileBox);
-    ends[2 * i + 1].boundary = FindEndpointBoundary(end, tileBox);
-    out[i] = SnapCurveInBox(patch[i], tileBox);
-
+    ends[2 * i].boundary = FindEndpointBoundary(start, box);
+    ends[2 * i + 1].boundary = FindEndpointBoundary(end, box);
     ends[2 * i].curveId = int(i);
     ends[2 * i].pointId = 0;
-    ends[2 * i].pos = out[i][0];
+    ends[2 * i].pos = start;
     ends[2 * i + 1].curveId = int(i);
-    ends[2 * i + 1].pointId = int(out[i].size() - 1);
-    ends[2 * i + 1].pos = out[i].back();
+    ends[2 * i + 1].pointId = int(patch[i].size() - 1);
+    ends[2 * i + 1].pos = end;
   }
+  return ends;
+}
+
+CurvePatch MakeTilable(const CurvePatch& patch, const BBox& tileBox) {
+  CurvePatch out(patch.size());
+  // find matching pairs of curve beginnings and ends
+  for (size_t i = 0; i < patch.size(); i++){
+    out[i] = SnapCurveInBox(patch[i], tileBox);
+  }
+  std::vector<EndPoint> ends = FindEndPointSides(out, tileBox);
 
   // match pairs in x edges and y edges
   std::vector<std::vector<unsigned> > boundaryPoints(4);
@@ -556,6 +563,21 @@ void PatchModifier::Apply(CurvePatch& curves) {
 
 std::vector<PatchModifier> GeneratePatchModifiers(const CurvePatch& curves) {
   std::vector<PatchModifier> mods;
+  BBox box;
+  box._init = true;
+  box.vmin = Vec3f(-1, -1, -1);
+  box.vmax = Vec3f(1, 1, 1);
+  std::vector<EndPoint> ends = FindEndPointSides(curves, box);  
+  for (int myEdge = 0; myEdge < 3; myEdge++) {
+    for (int neighborEdge = myEdge + 1; neighborEdge < 4; neighborEdge++) {
+      PatchModifier mod;
+      mod.myEdge = myEdge;
+      mod.neighborEdge = neighborEdge;
+      
 
+      mods.push_back(mod);
+
+    }
+  }
   return mods;
 }
