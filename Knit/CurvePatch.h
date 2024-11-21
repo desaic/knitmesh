@@ -5,7 +5,36 @@
 #include "BBox.h"
 #include "Vec3.h"
 
-using CurvePatch = std::vector<std::vector<Vec3f> > ;
+struct EndPoint {
+  int curveId = 0;
+  int pointId = 0;
+  int boundary = 0;
+  Vec3f pos;
+};
+
+class CurvePatch {
+public:
+  
+  CurvePatch() {}
+  CurvePatch(size_t s) :c(s) {}
+  //curves
+  std::vector<std::vector<Vec3f> > c;
+  //2 endpoint labels for each curve.
+  std::vector<EndPoint> ends;
+  size_t size()const {
+    return c.size();
+  }
+  void resize(size_t s) {
+    c.resize(s);
+  }
+
+  std::vector<Vec3f>& operator[](unsigned index) {
+    return c[index];
+  }
+  const std::vector<Vec3f>& operator[](unsigned index) const {
+    return c[index];
+  }
+};
 
 void BuildUnitPatch();
 CurvePatch LoadCurvePatch(const std::string& filename);
@@ -16,6 +45,11 @@ CurvePatch MakeTilable(const CurvePatch& patch, const BBox& tileBox);
 /// add more sample points between points further away than maxDist.
 void FillInGaps(CurvePatch& patch, float maxDist);
 void MakeTilablePatch();
+std::vector<EndPoint> FindEndPointSides(const CurvePatch& patch, const BBox& box);
+
+// rotate curve patch clockwise by 90 degs and also relabel the endpoints if 
+// they are initialized.
+CurvePatch RotateCW(const CurvePatch& patch, int quarterTurns);
 
 class PatchModifier{
 public:

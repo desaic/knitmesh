@@ -4,7 +4,6 @@
 #define _USE_MATH_DEFINES
 #include <array>
 #include <cmath>
-#include <ostream>
 
 template <typename T>
 class Vec3 {
@@ -168,11 +167,6 @@ class Vec3 {
  private:
   T v[3];
 };
-
-template <typename T>
-std::ostream &operator<<(std::ostream &os, Vec3<T> const &m) {
-  return os << m[0] << " " << m[1] << " " << m[2];
-}
 
 template <typename T>
 Vec3<T> operator+(const Vec3<T>& v0, const Vec3<T>& v1) {

@@ -170,7 +170,7 @@ void BuildUnitPatch() {
   //}
   //out.close();
 
-  std::vector<std::vector<Vec3f> > cpatch(paths.size());
+  CurvePatch cpatch(paths.size());
   for (size_t i = 0; i < paths.size(); i++) {
     cpatch[i].resize(paths[i].size());
     for (size_t j = 0; j < paths[i].size(); j++) {
@@ -185,11 +185,10 @@ CurvePatch LoadCurvePatch(const std::string& filename) {
   if (!in.good()) {
     return CurvePatch();
   }
-  CurvePatch curves;
   size_t numCurves;
   std::string token;
   in >> token >> numCurves;
-  curves.resize(numCurves);
+  CurvePatch curves(numCurves);
   for (size_t i = 0; i < numCurves; i++) {
     size_t numPoints;
     in >> numPoints;
@@ -402,13 +401,6 @@ void MoveCurveEndPoint(std::vector<Vec3f>& curve, int endPointIndex,
   }
 }
 
-struct EndPoint {
-  int curveId = 0;
-  int pointId = 0;
-  int boundary = 0;
-  Vec3f pos;
-};
-
 //find which side each endpoint is on.
 std::vector<EndPoint> FindEndPointSides(const CurvePatch&patch, const BBox & box) {
   std::vector<EndPoint> ends(2 * patch.size());
@@ -501,7 +493,7 @@ CurvePatch MakeTilable(const CurvePatch& patch, const BBox& tileBox) {
 }
 
 void MakeTilablePatch() {
-  std::vector<std::vector<Vec3f> > patch =
+  CurvePatch patch =
       LoadCurvePatch("F:/meshes/stitch/curve_patch.txt");
   BBox tileBox;
   tileBox.vmin = Vec3f(-5.9761, -5.1287, 0);
@@ -509,7 +501,7 @@ void MakeTilablePatch() {
   tileBox.vmin = 0.5f * tileBox.vmin;
   tileBox.vmax = 0.5f * tileBox.vmax;
 
-  std::vector<std::vector<Vec3f> > tile = MakeTilable(patch, tileBox);
+  CurvePatch tile = MakeTilable(patch, tileBox);
   SaveCurvePatch("F:/meshes/stitch/stitchTile.txt", tile);
   DrawCurvePatch(tile);
 }
@@ -557,8 +549,147 @@ void FillInGaps(CurvePatch& patch, float maxDist) {
   }
 }
 
+CurvePatch RotateCW(const CurvePatch& patch, int quarterTurns) {
+  CurvePatch out(patch.size());
+  out.c = patch.c;
+  for (int turn = 0; turn < quarterTurns; turn++) {
+    for (size_t c = 0; c < out.size(); c++) {
+      auto & curve = out[c];
+      for (size_t i = 0; i < curve.size(); i++) {
+        float x = curve[i][0];
+        float y = curve[i][1];
+        curve[i][0] = y;
+        curve[i][1] = -x;
+      }
+    }
+  }
+  out.ends = patch.ends;
+  for (size_t i = 0; i < out.ends.size(); i++) {
+    int c = out.ends[i].curveId;
+    int p = out.ends[i].pointId;
+    out.ends[i].pos = out[c][p];
+    if (out.ends[i].boundary >= 0) {
+      out.ends[i].boundary = (out.ends[i].boundary - quarterTurns + 4) % 4;
+    }
+  }
+
+  return out;
+}
+
 void PatchModifier::Apply(CurvePatch& curves) {
 
+}
+
+struct CurveMatching {
+  //pairs between me and neighbor.
+  std::vector<std::pair<int, int>>cross;
+  //pair up unmatched end points on my side
+  std::vector<std::pair<int, int>>myPair;
+  //pair up unpatched neighbor points.
+  std::vector<std::pair<int, int>>nbrPair;
+};
+
+//match end points between edge 0 of me and edge 2 of nbr in xz plane.
+CurveMatching MatchEndPoints(const CurvePatch&me, const CurvePatch & nbr) {
+  std::vector<int> myEnds, nbrEnds;
+  for (size_t i = 0; i < me.ends.size(); i++) {
+    if (me.ends[i].boundary == 0) {
+      myEnds.push_back(i);
+    }
+  }
+  for (size_t j = 0; j < nbr.ends.size(); j++) {
+    if (nbr.ends[j].boundary == 2) {
+      nbrEnds.push_back(j);
+    }
+  }
+  
+  CurveMatching matches;
+  // is this neighbor endpoint already matched.
+  std::vector<uint8_t> nbrMatched(nbrEnds.size(), 0);
+  std::vector<uint8_t> myMatched(myEnds.size(), 0);
+  
+  if (myEnds.size() >= nbrEnds.size()) {
+    for (size_t j = 0; j < nbrEnds.size(); j++) {
+      float minDist = -1;
+      int match = 0;
+      for (size_t i = 0; i < myEnds.size(); i++) {
+        Vec3f v = me.ends[myEnds[i]].pos - nbr.ends[nbrEnds[j]].pos;
+        v[1] = 0;
+        float dist = v.norm();
+        if (i == 0 || dist < minDist) {
+          minDist = dist;
+          match = int(i);
+        }
+      }
+      matches.cross.push_back(std::make_pair(myEnds[match], nbrEnds[j]));
+      myMatched[match] = 1;
+      nbrMatched[j] = 1;
+    }
+    for (size_t i = 0; i < myEnds.size(); i++) {
+      float minDist = -1;
+      int match = 0;
+      if (myMatched[i]) {
+        continue;
+      }
+      for (size_t j = i+1; j < myEnds.size(); j++) {
+        if (myMatched[j]) {
+          continue;
+        }
+        Vec3f v = me.ends[myEnds[i]].pos - me.ends[myEnds[j]].pos;
+        v[1] = 0;
+        float dist = v.norm();
+        if (j == 0 || dist < minDist) {
+          minDist = dist;
+          match = int(j);
+        }
+      }
+      if (match > 0) {
+        matches.myPair.push_back(std::make_pair(myEnds[i], myEnds[match]));
+      }
+    }
+  }
+  else {
+    for (size_t i = 0; i < myEnds.size(); i++) {
+      float minDist = -1;
+      int match = 0;
+      for (size_t j = 0; j < nbrEnds.size(); j++) {
+        Vec3f v = me.ends[myEnds[i]].pos - nbr.ends[nbrEnds[j]].pos;
+        v[1] = 0;
+        float dist = v.norm();
+        if (j == 0 || dist < minDist) {
+          minDist = dist;
+          match = int(j);
+        }
+      }
+      matches.cross.push_back(std::make_pair(myEnds[i], nbrEnds[match]));
+      nbrMatched[match] = 1;
+      myMatched[i] = 1;
+    }
+
+    for (size_t i = 0; i < nbrEnds.size(); i++) {
+      float minDist = -1;
+      int match = 0;
+      if (nbrMatched[i]) {
+        continue;
+      }
+      for (size_t j = i + 1; j < nbrEnds.size(); j++) {
+        if (nbrMatched[j]) {
+          continue;
+        }
+        Vec3f v = nbr.ends[nbrEnds[i]].pos - nbr.ends[nbrEnds[j]].pos;
+        v[1] = 0;
+        float dist = v.norm();
+        if (j == 0 || dist < minDist) {
+          minDist = dist;
+          match = int(j);
+        }
+      }
+      if (match > 0) {
+        matches.nbrPair.push_back(std::make_pair(nbrEnds[i], nbrEnds[match]));
+      }
+    }
+  }
+  return matches;
 }
 
 std::vector<PatchModifier> GeneratePatchModifiers(const CurvePatch& curves) {
@@ -567,13 +698,37 @@ std::vector<PatchModifier> GeneratePatchModifiers(const CurvePatch& curves) {
   box._init = true;
   box.vmin = Vec3f(-1, -1, -1);
   box.vmax = Vec3f(1, 1, 1);
-  std::vector<EndPoint> ends = FindEndPointSides(curves, box);  
+  CurvePatch localCopy = curves;
+  localCopy.ends = FindEndPointSides(curves, box);
+  //     3            2
+  //  0     1  =>  3     1
+  //     2            0
+  // relabel from axis order to edge order.
+  const int RELABEL[4] = { 3,1,0,2 };
+  for (size_t i = 0; i < localCopy.ends.size(); i++) {
+    if (localCopy.ends[i].boundary >= 0) {
+      localCopy.ends[i].boundary = RELABEL[localCopy.ends[i].boundary];
+    }
+  }
+
   for (int myEdge = 0; myEdge < 3; myEdge++) {
+    //rotate this curve patch so that edge i is facing down.
+    int myRot = myEdge;
+    CurvePatch myCopy = RotateCW(localCopy, myRot);
+    
+    SaveCurvePatchObj("F:/meshes/stitch/myCopy" + std::to_string(myEdge)+".obj", myCopy);
+    
     for (int neighborEdge = myEdge + 1; neighborEdge < 4; neighborEdge++) {
+      //number of 90deg clockwise turns so that neighbor's edge is facing up (2).
+      int neighborRot = ((neighborEdge - 2) + 4) % 4;
+
       PatchModifier mod;
       mod.myEdge = myEdge;
       mod.neighborEdge = neighborEdge;
-      
+      CurvePatch neighborCopy = RotateCW(localCopy, neighborRot);
+      SaveCurvePatchObj("F:/meshes/stitch/neighborCopy"+std::to_string(myEdge)+"_" + std::to_string(neighborEdge) + ".obj", neighborCopy);
+
+      CurveMatching matches = MatchEndPoints(myCopy, neighborCopy);
 
       mods.push_back(mod);
 

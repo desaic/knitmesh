@@ -2,8 +2,6 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <map>
-#include <sstream>
 
 #include "Array2D.h"
 #include "Array3D.h"
@@ -380,13 +378,9 @@ int main(int argc, char** argv) {
   ComputeVertNormals(hem);
   //SaveLabeledMeshObj("F:/meshes/stitch/labeled.obj", hem);
   auto curves =
-      LoadCurvePatch("F:/github/knitmesh/Data/stitchTile.txt");
-  FillInGaps(curves, 0.2);
-  CurvePatch scaled = ConvertCurvesToNaturalCoordinates(curves);
-  SaveCurvePatch("F:/meshes/stitch/scaled_patch.txt", scaled);
-  SaveCurvePatchObj("F:/meshes/stitch/scaled_patch.obj", scaled);
-  std::vector<PatchModifier> mods = GeneratePatchModifiers(scaled);
-  std::vector<CurvePatch> meshCurves = PutCurvesOnLabeledMesh(scaled, hem);
+      LoadCurvePatch("F:/github/knitmesh/Data/scaled_patch.txt");
+  std::vector<PatchModifier> mods = GeneratePatchModifiers(curves);
+  std::vector<CurvePatch> meshCurves = PutCurvesOnLabeledMesh(curves, hem);
 
   return 0;
 }
