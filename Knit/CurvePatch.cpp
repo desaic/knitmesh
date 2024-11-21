@@ -578,9 +578,18 @@ CurvePatch RotateCW(const CurvePatch& patch, int quarterTurns) {
 
 void PatchModifier::Apply(CurvePatch& curves) {
   for (const auto & mod:curveMods) {
+    auto& curve = curves.c[mod.curveId];
     if (mod.op == CurveMod::OP::REPLACE) {
-      if (mod.endPoint % 2 == 0) {}
+      if (mod.endPoint % 2 == 0) {
+        //starting point
+        for (size_t i = 0; i < mod.p.size(); i++) {
+          curve[i] = mod.p[i];
+        }
+      }
       else {
+        for (size_t i = 0; i < mod.p.size(); i++) {
+          curve[curve.size() - i - 1] = mod.p[i];
+        }
       }
     }
     else {
@@ -710,6 +719,7 @@ std::vector<CurveMod> BlendEndPoints(const CurvePatch & my, int myEndIndex, cons
   mods[0].curveId = myEnd.curveId;
   mods[0].endPoint = myEndIndex;
   mods[0].op = CurveMod::OP::REPLACE;
+  
   //number of points being moved
   const size_t NUM_MOD_POINTS = 10;
   size_t numPoints = std::min(NUM_MOD_POINTS, my.c[myEnd.curveId].size());
@@ -720,14 +730,66 @@ std::vector<CurveMod> BlendEndPoints(const CurvePatch & my, int myEndIndex, cons
     step = -1;
   }
 
-  const auto& c = my.c[myEnd.curveId];
+  const auto& myc = my.c[myEnd.curveId];
   for (size_t i = 0; i < numPoints; i++) {
-    float weight = (numPoints - i) / numPoints;    
-    mods[0].p[i] = weight * middle + (1 - weight) * c[pointId];
-    mods[0].p[i][1] = c[pointId][1];
+    float weight = (numPoints - i) / float(numPoints);    
+    mods[0].p[i] = weight * middle + (1 - weight) * myc[pointId];
+    mods[0].p[i][1] = myc[pointId][1];
     pointId += step;
   }
+
+  //nbr side
+  mods[1].curveId = nbrEnd.curveId;
+  mods[1].endPoint = nbrEndIndex;
+  mods[1].op = CurveMod::OP::REPLACE;
+
+  numPoints = std::min(NUM_MOD_POINTS, nbr.c[nbrEnd.curveId].size());
+  mods[1].p.resize(numPoints);
+  pointId = nbrEnd.pointId;
+  step = 1;
+  if (nbrEnd.pointId > 0) {
+    step = -1;
+  }
+
+  const auto& nc = nbr.c[nbrEnd.curveId];
+  for (size_t i = 0; i < numPoints; i++) {
+    float weight = (numPoints - i) / float(numPoints);
+    mods[1].p[i] = weight * middle + (1 - weight) * nc[pointId];
+    mods[1].p[i][1] = nc[pointId][1];
+    pointId += step;
+  }
+
   return mods;
+}
+
+CurveMod ConnectEndPoints(const CurvePatch& curves, int endIndex1, int endIndex2) {
+  const auto& end1 = curves.ends[endIndex1];
+  const auto& end2 = curves.ends[endIndex2];
+  CurveMod mod;
+  Vec3f middle = 0.5f * (myEnd.pos + nbrEnd.pos);
+  mods[0].curveId = myEnd.curveId;
+  mods[0].endPoint = myEndIndex;
+  mods[0].op = CurveMod::OP::REPLACE;
+
+  //number of points being moved
+  const size_t NUM_MOD_POINTS = 10;
+  size_t numPoints = std::min(NUM_MOD_POINTS, my.c[myEnd.curveId].size());
+  mods[0].p.resize(numPoints);
+  int pointId = myEnd.pointId;
+  int step = 1;
+  if (myEnd.pointId > 0) {
+    step = -1;
+  }
+
+  const auto& myc = my.c[myEnd.curveId];
+  for (size_t i = 0; i < numPoints; i++) {
+    float weight = (numPoints - i) / float(numPoints);
+    mods[0].p[i] = weight * middle + (1 - weight) * myc[pointId];
+    mods[0].p[i][1] = myc[pointId][1];
+    pointId += step;
+  }
+
+  return mod;
 }
 
 std::vector<PatchModifier> GeneratePatchModifiers(const CurvePatch& curves) {
@@ -762,15 +824,28 @@ std::vector<PatchModifier> GeneratePatchModifiers(const CurvePatch& curves) {
       mod.myEdge = myEdge;
       mod.neighborEdge = neighborEdge;
       CurvePatch neighborCopy = RotateCW(localCopy, neighborRot);
-      SaveCurvePatchObj("F:/meshes/stitch/neighborCopy"+std::to_string(myEdge)+"_" + std::to_string(neighborEdge) + ".obj", neighborCopy);
-      PatchModifier patchMod;
+      PatchModifier patchMod, nbrMod;
       CurveMatching matches = MatchEndPoints(myCopy, neighborCopy);
       for (auto match : matches.cross) {
         std::vector<CurveMod> curveMods = BlendEndPoints(myCopy, match.first, neighborCopy, match.second);
-        patchMod.curveMods.push_back(curveMods[0]);        
+        patchMod.curveMods.push_back(curveMods[0]);
+        nbrMod.curveMods.push_back(curveMods[1]);
+      }
+      for (auto match : matches.myPair) {
+        std::vector<CurveMod> curveMods = ConnectEndPoints(myCopy, match.first,match.second);
+        patchMod.curveMods.push_back(curveMods[0]);
+        nbrMod.curveMods.push_back(curveMods[1]);
+      }
+      for (auto match : matches.nbrPair) {
+        std::vector<CurveMod> curveMods = BlendEndPoints(neighborCopy, match.first, match.second);
+        patchMod.curveMods.push_back(curveMods[0]);
+        nbrMod.curveMods.push_back(curveMods[1]);
       }
       patchMod.Apply(myCopy);
+      nbrMod.Apply(neighborCopy);
       SaveCurvePatchObj("F:/meshes/stitch/myCopy" + std::to_string(myEdge) + "_" + std::to_string(neighborEdge) + ".obj", myCopy);
+      SaveCurvePatchObj("F:/meshes/stitch/neighborCopy" + std::to_string(myEdge) + "_" + std::to_string(neighborEdge) + ".obj", neighborCopy);
+
       mods.push_back(mod);
 
     }
