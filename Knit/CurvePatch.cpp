@@ -592,8 +592,19 @@ void PatchModifier::Apply(CurvePatch& curves) {
         }
       }
     }
-    else {
-    
+    else if(mod.op == CurveMod::OP::CONNECT){
+      std::vector<Vec3f > newCurve;
+      if (mod.endPoint % 2 == 0) {
+        for (size_t i = 0; i < mod.p.size(); i++) {
+          newCurve.push_back(mod.p[mod.p.size() - i - 1]);
+        }
+        newCurve.insert(newCurve.end(), curve.begin(), curve.end());
+      }
+      else {
+        newCurve.insert(newCurve.end(), curve.begin(), curve.end());
+        newCurve.insert(newCurve.end(), mod.p.begin(), mod.p.end());
+      }
+      curve = newCurve;
     }
   }
 }
@@ -766,29 +777,50 @@ CurveMod ConnectEndPoints(const CurvePatch& curves, int endIndex1, int endIndex2
   const auto& end1 = curves.ends[endIndex1];
   const auto& end2 = curves.ends[endIndex2];
   CurveMod mod;
-  Vec3f middle = 0.5f * (myEnd.pos + nbrEnd.pos);
-  mods[0].curveId = myEnd.curveId;
-  mods[0].endPoint = myEndIndex;
-  mods[0].op = CurveMod::OP::REPLACE;
+  Vec3f middle = 0.5f * (end1.pos + end2.pos);
+  mod.curveId = end1.curveId;
+  mod.endPoint = endIndex1;
+  mod.endPointConn = endIndex2;
+  mod.op = CurveMod::OP::CONNECT;
 
-  //number of points being moved
-  const size_t NUM_MOD_POINTS = 10;
-  size_t numPoints = std::min(NUM_MOD_POINTS, my.c[myEnd.curveId].size());
-  mods[0].p.resize(numPoints);
-  int pointId = myEnd.pointId;
-  int step = 1;
-  if (myEnd.pointId > 0) {
-    step = -1;
+  //number of points being added
+  const size_t NUM_MOD_POINTS = 20;  
+  mod.p.resize(NUM_MOD_POINTS);
+  int pointId = end1.pointId;
+
+  SplineCR1 spline;
+    
+  Vec3f move;
+  float moveDist= 0.05;
+  int side = end1.boundary;
+  switch (side) {
+  case 0:
+    move = Vec3f(0, -1, 0);
+    break;
+  case 1:
+    move = Vec3f(1, 0, 0);
+    break;
+  case 2:
+    move = Vec3f(0, 1, 0);
+    break;
+  case 3:
+    move = Vec3f(-1, 0, 0);
+    break;
+  default:
+    break;
   }
 
-  const auto& myc = my.c[myEnd.curveId];
-  for (size_t i = 0; i < numPoints; i++) {
-    float weight = (numPoints - i) / float(numPoints);
-    mods[0].p[i] = weight * middle + (1 - weight) * myc[pointId];
-    mods[0].p[i][1] = myc[pointId][1];
-    pointId += step;
-  }
+  spline.p.resize(5);
+  spline.p[0] = end1.pos;
+  spline.p[1] = end1.pos + moveDist *move;
+  spline.p[2] = middle + 0.2f * move;
+  spline.p[3] = end2.pos + moveDist * move;
+  spline.p[4] = end2.pos;
 
+  for (size_t i = 0; i < NUM_MOD_POINTS; i++) {
+    Vec3f pt = spline.Eval(2 * i / float(NUM_MOD_POINTS));
+    mod.p.push_back(pt);
+  }
   return mod;
 }
 
@@ -832,14 +864,12 @@ std::vector<PatchModifier> GeneratePatchModifiers(const CurvePatch& curves) {
         nbrMod.curveMods.push_back(curveMods[1]);
       }
       for (auto match : matches.myPair) {
-        std::vector<CurveMod> curveMods = ConnectEndPoints(myCopy, match.first,match.second);
-        patchMod.curveMods.push_back(curveMods[0]);
-        nbrMod.curveMods.push_back(curveMods[1]);
+        CurveMod curveMod = ConnectEndPoints(myCopy, match.first,match.second);
+        patchMod.curveMods.push_back(curveMod);        
       }
       for (auto match : matches.nbrPair) {
-        std::vector<CurveMod> curveMods = BlendEndPoints(neighborCopy, match.first, match.second);
-        patchMod.curveMods.push_back(curveMods[0]);
-        nbrMod.curveMods.push_back(curveMods[1]);
+        CurveMod curveMod = ConnectEndPoints(neighborCopy, match.first, match.second);
+        nbrMod.curveMods.push_back(curveMod);
       }
       patchMod.Apply(myCopy);
       nbrMod.Apply(neighborCopy);
