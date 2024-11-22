@@ -305,13 +305,15 @@ CurvePatch TrilinearInterp(const CurvePatch& curves, const Hex& hex) {
   return patch;
 }
 
-std::vector<CurvePatch> PutCurvesOnLabeledMesh(const CurvePatch&patch,
-  const HalfEdgeMesh &hem) {
+std::vector<CurvePatch> PutCurvesOnLabeledMesh(const CurvePatch& patch,
+  const HalfEdgeMesh& hem, std::vector<PatchModifier>& mods) {
   std::vector<CurvePatch> faceCurves(hem.NumFaces());
 
-  std::ofstream dout("C:/meshes/stitch/debugPoints.obj");
+  std::ofstream dout("F:/meshes/stitch/debugPoints.obj");
+
   for (size_t i = 0; i < hem.NumFaces(); i++) {
     Quad quad;
+    CurvePatch curves = patch;
     const PolyFace& face = hem.F(i);
     if (face.n != quad.size()) {
       //only knows how to deal with quads
@@ -322,13 +324,41 @@ std::vector<CurvePatch> PutCurvesOnLabeledMesh(const CurvePatch&patch,
       //should never be
       lab = 0;
     }
+    //go though 4 neighbors and modify points on each edge
+    auto he = hem.he[hem.faceEdgeIndex[i]];
+    for (unsigned n = 0; n < face.n; n++) {
+      if (!he.hasTwin()) {
+        //@TODO handle boundary edges.
+        he = hem.he[he.next];
+        continue;
+      }
+      int myEdge = (n + 4 - lab) % 4;
+      unsigned neighbor = hem.edgeFaceIndex[he.twin];
+      int neighborLab = hem.faceLabels[neighbor];
+      if (neighborLab < 0) {
+        //impossible
+        he = hem.he[he.next];
+        continue;
+      }
+      int neighborEdgeIndex = hem.EdgeIndexInFace(he.twin, neighbor);
+      int neighborEdge = (neighborEdgeIndex + 4 - neighborLab) % 4;
+      for (size_t mi = 0; mi < mods.size(); mi++) {
+        if (mods[mi].myEdge == myEdge && mods[mi].neighborEdge == neighborEdge) {
+          mods[mi].Apply(curves);
+          //only one modifier can be applied to each edge.
+          break;
+        }
+      }
+      he = hem.he[he.next];
+    }
+
     for (unsigned j = 0; j < quad.size(); j++) {
       unsigned vIdx = face[(j + lab) % quad.size()];
       quad.v[j] = hem.V(vIdx);
       quad.n[j] = hem.vn[vIdx];
     }
     Hex hex = QuadToHex(quad);
-    faceCurves[i] = TrilinearInterp(patch, hex);
+    faceCurves[i] = TrilinearInterp(curves, hex);
     for (unsigned c = 0; c < faceCurves[i].size(); c++) {
       for (unsigned j = 0; j < faceCurves[i][c].size(); j++) {
         Vec3f p = faceCurves[i][c][j];
@@ -380,7 +410,8 @@ int main(int argc, char** argv) {
   auto curves =
       LoadCurvePatch("F:/github/knitmesh/Data/scaled_patch.txt");
   std::vector<PatchModifier> mods = GeneratePatchModifiers(curves);
-  std::vector<CurvePatch> meshCurves = PutCurvesOnLabeledMesh(curves, hem);
+
+  std::vector<CurvePatch> meshCurves = PutCurvesOnLabeledMesh(curves, hem, mods);
 
   return 0;
 }

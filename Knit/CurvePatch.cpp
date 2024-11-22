@@ -667,7 +667,7 @@ CurveMatching MatchEndPoints(const CurvePatch&me, const CurvePatch & nbr) {
         Vec3f v = me.ends[myEnds[i]].pos - me.ends[myEnds[j]].pos;
         v[1] = 0;
         float dist = v.norm();
-        if (j == 0 || dist < minDist) {
+        if (match == 0 || dist < minDist) {
           minDist = dist;
           match = int(j);
         }
@@ -784,8 +784,7 @@ CurveMod ConnectEndPoints(const CurvePatch& curves, int endIndex1, int endIndex2
   mod.op = CurveMod::OP::CONNECT;
 
   //number of points being added
-  const size_t NUM_MOD_POINTS = 20;  
-  mod.p.resize(NUM_MOD_POINTS);
+  const size_t NUM_MOD_POINTS = 20;
   int pointId = end1.pointId;
 
   SplineCR1 spline;
@@ -824,6 +823,20 @@ CurveMod ConnectEndPoints(const CurvePatch& curves, int endIndex1, int endIndex2
   return mod;
 }
 
+CurveMod RotateCurveMod(const CurveMod& mod, int quarterTurns) {
+  CurveMod out = mod;
+  for (int turn = 0; turn < quarterTurns; turn++) {
+    for (size_t i = 0; i < out.p.size(); i++) {
+      Vec3f& p = out.p[i];
+      float x = p[0];
+      float y = p[1];
+      p[0] = y;
+      p[1] = -x;
+    }
+  }
+  return out;
+}
+
 std::vector<PatchModifier> GeneratePatchModifiers(const CurvePatch& curves) {
   std::vector<PatchModifier> mods;
   BBox box;
@@ -843,12 +856,17 @@ std::vector<PatchModifier> GeneratePatchModifiers(const CurvePatch& curves) {
     }
   }
 
-  for (int myEdge = 0; myEdge < 3; myEdge++) {
-    //rotate this curve patch so that edge i is facing down.
-    int myRot = myEdge;
-    CurvePatch myCopy = RotateCW(localCopy, myRot);
-    
-    for (int neighborEdge = myEdge + 1; neighborEdge < 4; neighborEdge++) {
+  Array2D8u hasPair(4, 4);
+  hasPair.Fill(0);
+
+  for (int myEdge = 0; myEdge < 4; myEdge++) {
+    for (int neighborEdge = myEdge; neighborEdge < 4; neighborEdge++) {
+      //rotate this curve patch so that edge i is facing down.
+      CurvePatch myCopy = RotateCW(localCopy, myEdge);
+      if (neighborEdge == myEdge + 2) {
+        //no need to mod for pairs (0,2) and (1,3)
+        continue;
+      }
       //number of 90deg clockwise turns so that neighbor's edge is facing up (2).
       int neighborRot = ((neighborEdge - 2) + 4) % 4;
 
@@ -871,14 +889,39 @@ std::vector<PatchModifier> GeneratePatchModifiers(const CurvePatch& curves) {
         CurveMod curveMod = ConnectEndPoints(neighborCopy, match.first, match.second);
         nbrMod.curveMods.push_back(curveMod);
       }
+
+      //unrotate mods, relabel nbrMod
+      myCopy = RotateCW(myCopy, 4 - myEdge);
+      for (auto& curveMod : patchMod.curveMods) {
+        curveMod = RotateCurveMod(curveMod, 4 - myEdge);
+      }
+      mod.curveMods = patchMod.curveMods;
       patchMod.Apply(myCopy);
+
+      neighborCopy = RotateCW(neighborCopy, 4 - neighborRot);
+      for (auto& curveMod : nbrMod.curveMods) {
+        curveMod = RotateCurveMod(curveMod, 4 - neighborRot);
+      }
       nbrMod.Apply(neighborCopy);
-      SaveCurvePatchObj("F:/meshes/stitch/myCopy" + std::to_string(myEdge) + "_" + std::to_string(neighborEdge) + ".obj", myCopy);
-      SaveCurvePatchObj("F:/meshes/stitch/neighborCopy" + std::to_string(myEdge) + "_" + std::to_string(neighborEdge) + ".obj", neighborCopy);
 
       mods.push_back(mod);
+      if (myEdge != neighborEdge) {
+        mod.myEdge = neighborEdge;
+        mod.neighborEdge = myEdge;
+        mod.curveMods = nbrMod.curveMods;
+        mods.push_back(mod);
+      }
 
+      hasPair(myEdge, neighborEdge) = 1;
+      hasPair(neighborEdge, myEdge) = 1;
     }
+  }
+
+  for (size_t i = 0; i < hasPair.GetSize()[1]; i++) {
+    for (size_t j = 0; j < hasPair.GetSize()[0]; j++) {
+      std::cout << int(hasPair(j,i)) << " ";
+    }
+    std::cout << "\n";
   }
   return mods;
 }
