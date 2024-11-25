@@ -12,7 +12,8 @@ class DisjSet {
     unsigned size = 1;
   };
   /// @brief Create n roots.
-  void Create(unsigned numNodes) { nodes.resize(numNodes);
+  void Create(unsigned numNodes) { 
+    nodes.resize(numNodes);
     for (unsigned i = 0; i < nodes.size(); i++) {
       nodes[i].parent = i;
     }

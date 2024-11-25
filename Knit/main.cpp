@@ -305,11 +305,45 @@ CurvePatch TrilinearInterp(const CurvePatch& curves, const Hex& hex) {
   return patch;
 }
 
-std::vector<CurvePatch> PutCurvesOnLabeledMesh(const CurvePatch& patch,
+std::vector<CurvePatch> PutCurvesOnLabeledMesh(const CurvePatch& patchin,
   const HalfEdgeMesh& hem, std::vector<PatchModifier>& mods) {
+  CurvePatch patch = patchin;
+  BBox box;
+  box.vmin = Vec3f(-1, -1, -1);
+  box.vmax = Vec3f(1, 1, 1);
+  patch.ends = FindEndPointSides(patch, box);
+  const int RELABEL[4] = { 3,1,0,2 };
   std::vector<CurvePatch> faceCurves(hem.NumFaces());
-
   std::ofstream dout("F:/meshes/stitch/debugPoints.obj");
+  std::vector<EndPointPair> xpairs, ypairs;
+  xpairs = FindOppositePairsX(patch);
+  ypairs = FindOppositePairsY(patch);
+  //has to relabel after finding opposite pairs for now .
+  for (size_t i = 0; i < patch.ends.size(); i++) {
+    patch.ends[i].boundary = RELABEL[patch.ends[i].boundary];
+  }
+  size_t CurvesPerPatch = patch.c.size();
+  //neighboring end point for each end point.
+  struct ConnPoint {
+    int faceId = -1;
+    int curveId = 0;
+    int endPoint = 0;
+    int neighborId = -1;
+    
+    ConnPoint(int face, int curve, int e):faceId(face), curveId(curve), endPoint(e) {}
+
+    static int Id(int face, int curve, int CurvesPerPatch, int endPointIndex) {
+      return 2 * (face * CurvesPerPatch + curve) + endPointIndex;
+    }
+  };
+
+  std::vector<ConnPoint> conns;
+  for (size_t i = 0; i < hem.NumFaces(); i++) {
+    for (size_t j = 0; j < CurvesPerPatch; j++) {
+      conns.push_back(ConnPoint(i, j, 0));
+      conns.push_back(ConnPoint(i, j, 1));
+    }
+  }
 
   for (size_t i = 0; i < hem.NumFaces(); i++) {
     Quad quad;
@@ -342,12 +376,45 @@ std::vector<CurvePatch> PutCurvesOnLabeledMesh(const CurvePatch& patch,
       }
       int neighborEdgeIndex = hem.EdgeIndexInFace(he.twin, neighbor);
       int neighborEdge = (neighborEdgeIndex + 4 - neighborLab) % 4;
+      bool hasModifier = false;
       for (size_t mi = 0; mi < mods.size(); mi++) {
         if (mods[mi].myEdge == myEdge && mods[mi].neighborEdge == neighborEdge) {
           mods[mi].Apply(curves);
+          for (const auto& cMod : mods[mi].curveMods) {
+            if (cMod.op == CurveMod::OP::REPLACE) {
+              int myId = ConnPoint::Id(i, cMod.curveId, CurvesPerPatch, cMod.endPoint % 2);
+              int nbrId = ConnPoint::Id(neighbor, cMod.nbrCurve, CurvesPerPatch, cMod.nbrEndPoint % 2);
+              conns[myId].neighborId = nbrId;
+              if (conns[nbrId].neighborId < 0) {
+                conns[nbrId].neighborId = myId;
+              }
+              else if (conns[nbrId].neighborId != myId) { 
+                std::cout << "messed up!\n"; 
+              }
+            } else if(cMod.op == CurveMod::OP::CONNECT) {
+              int myId = ConnPoint::Id(i, cMod.curveId, CurvesPerPatch, cMod.endPoint % 2);
+              int nbrId = ConnPoint::Id(i, cMod.endPointConn/2, CurvesPerPatch, cMod.endPointConn % 2);
+              conns[myId].neighborId = nbrId;
+              if (conns[nbrId].neighborId < 0) {
+                conns[nbrId].neighborId = myId;
+              }
+              else { 
+                std::cout << "messed up!\n"; 
+              }
+            }
+          }
           //only one modifier can be applied to each edge.
+          hasModifier = true;
           break;
         }
+      }
+      if (!hasModifier) {
+        if (n == 0 ) {
+
+        }
+        else if (n == 1) {}
+        else if (n == 2) {}
+        else {}
       }
       he = hem.he[he.next];
     }
@@ -359,6 +426,8 @@ std::vector<CurvePatch> PutCurvesOnLabeledMesh(const CurvePatch& patch,
     }
     Hex hex = QuadToHex(quad);
     faceCurves[i] = TrilinearInterp(curves, hex);
+    faceCurves[i].labels.resize(faceCurves[i].c.size());
+
     for (unsigned c = 0; c < faceCurves[i].size(); c++) {
       for (unsigned j = 0; j < faceCurves[i][c].size(); j++) {
         Vec3f p = faceCurves[i][c][j];

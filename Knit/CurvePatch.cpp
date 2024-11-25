@@ -420,28 +420,19 @@ std::vector<EndPoint> FindEndPointSides(const CurvePatch&patch, const BBox & box
   return ends;
 }
 
-CurvePatch MakeTilable(const CurvePatch& patch, const BBox& tileBox) {
-  CurvePatch out(patch.size());
-  // find matching pairs of curve beginnings and ends
-  for (size_t i = 0; i < patch.size(); i++){
-    out[i] = SnapCurveInBox(patch[i], tileBox);
-  }
-  std::vector<EndPoint> ends = FindEndPointSides(out, tileBox);
-
-  // match pairs in x edges and y edges
+std::vector<EndPointPair> FindOppositePairsX(const CurvePatch& patch) {
+  std::vector<EndPointPair> pairs;
   std::vector<std::vector<unsigned> > boundaryPoints(4);
-  for (size_t i = 0; i < ends.size(); i++) {
-    boundaryPoints[ends[i].boundary].push_back(i);
+  for (size_t i = 0; i < patch.ends.size(); i++) {
+    boundaryPoints[patch.ends[i].boundary].push_back(i);
   }
-
-  std::vector<Edge> pairs;
   // pairs in x
   for (size_t i = 0; i < boundaryPoints[0].size(); i++) {
     int closest = 0;
-    EndPoint p0 = ends[boundaryPoints[0][i]];
+    EndPoint p0 = patch.ends[boundaryPoints[0][i]];
     float minDist = -1;
     for (size_t j = 0; j < boundaryPoints[1].size(); j++) {
-      EndPoint p1 = ends[boundaryPoints[1][j]];
+      EndPoint p1 = patch.ends[boundaryPoints[1][j]];
       Vec3f pos1 = p1.pos;
       pos1[0] = p0.pos[0];
       float dist = (pos1 - p0.pos).norm();
@@ -450,15 +441,24 @@ CurvePatch MakeTilable(const CurvePatch& patch, const BBox& tileBox) {
         closest = int(boundaryPoints[1][j]);
       }
     }
-    pairs.push_back(Edge(boundaryPoints[0][i], closest));
+    pairs.push_back(EndPointPair(boundaryPoints[0][i], closest));
   }
-  // pairs in y
+  return pairs;
+}
+
+std::vector<EndPointPair> FindOppositePairsY(const CurvePatch& patch) {
+  std::vector<EndPointPair> pairs;
+  std::vector<std::vector<unsigned> > boundaryPoints(4);
+  for (size_t i = 0; i < patch.ends.size(); i++) {
+    boundaryPoints[patch.ends[i].boundary].push_back(i);
+  }
+  
   for (size_t i = 0; i < boundaryPoints[2].size(); i++) {
     int closest = 0;
-    EndPoint p0 = ends[boundaryPoints[2][i]];
+    EndPoint p0 = patch.ends[boundaryPoints[2][i]];
     float minDist = -1;
     for (size_t j = 0; j < boundaryPoints[3].size(); j++) {
-      EndPoint p1 = ends[boundaryPoints[3][j]];
+      EndPoint p1 = patch.ends[boundaryPoints[3][j]];
       Vec3f pos1 = p1.pos;
       pos1[1] = p0.pos[1];
       float dist = (pos1 - p0.pos).norm();
@@ -467,13 +467,34 @@ CurvePatch MakeTilable(const CurvePatch& patch, const BBox& tileBox) {
         closest = int(boundaryPoints[3][j]);
       }
     }
-    pairs.push_back(Edge(boundaryPoints[2][i], closest));
+    pairs.push_back(EndPointPair(boundaryPoints[2][i], closest));
   }
+  return pairs;
+}
+
+CurvePatch MakeTilable(const CurvePatch& patch, const BBox& tileBox) {
+  CurvePatch out(patch.size());
+  // find matching pairs of curve beginnings and ends
+  for (size_t i = 0; i < patch.size(); i++){
+    out[i] = SnapCurveInBox(patch[i], tileBox);
+  }
+  std::vector<EndPoint> ends = FindEndPointSides(out, tileBox);
+  out.ends = ends;
+  // match pairs in x edges and y edges
+  std::vector<std::vector<unsigned> > boundaryPoints(4);
+  for (size_t i = 0; i < ends.size(); i++) {
+    boundaryPoints[ends[i].boundary].push_back(i);
+  }
+
+  std::vector<EndPointPair> pairs, ypairs;
+  pairs = FindOppositePairsX(out);
+  ypairs = FindOppositePairsY(out);  
+  pairs.insert(pairs.end(), ypairs.begin(), ypairs.end());
 
   // move end points to middle points of each edge
   for (size_t ei = 0; ei < pairs.size(); ei++) {
-    EndPoint e0 = ends[pairs[ei].v[0]];
-    EndPoint e1 = ends[pairs[ei].v[1]];
+    EndPoint e0 = ends[pairs[ei].p1];
+    EndPoint e1 = ends[pairs[ei].p2];
     Vec3f mid = 0.5f * (e0.pos + e1.pos);
     MoveCurveEndPoint(out[e0.curveId], e0.pointId, mid, tileBox);
     MoveCurveEndPoint(out[e1.curveId], e1.pointId, mid, tileBox);
@@ -729,6 +750,8 @@ std::vector<CurveMod> BlendEndPoints(const CurvePatch & my, int myEndIndex, cons
   Vec3f middle = 0.5f * (myEnd.pos + nbrEnd.pos);
   mods[0].curveId = myEnd.curveId;
   mods[0].endPoint = myEndIndex;
+  mods[0].nbrCurve = nbrEnd.curveId;
+  mods[0].nbrEndPoint = nbrEndIndex;
   mods[0].op = CurveMod::OP::REPLACE;
   
   //number of points being moved
@@ -752,6 +775,8 @@ std::vector<CurveMod> BlendEndPoints(const CurvePatch & my, int myEndIndex, cons
   //nbr side
   mods[1].curveId = nbrEnd.curveId;
   mods[1].endPoint = nbrEndIndex;
+  mods[1].nbrCurve = myEnd.curveId;
+  mods[1].nbrEndPoint = myEndIndex;
   mods[1].op = CurveMod::OP::REPLACE;
 
   numPoints = std::min(NUM_MOD_POINTS, nbr.c[nbrEnd.curveId].size());

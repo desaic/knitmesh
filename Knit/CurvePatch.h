@@ -19,6 +19,8 @@ public:
   CurvePatch(size_t s) :c(s) {}
   //curves
   std::vector<std::vector<Vec3f> > c;
+  //additional info for each curve
+  std::vector<unsigned> labels;
   //2 endpoint labels for each curve.
   std::vector<EndPoint> ends;
   size_t size()const {
@@ -59,9 +61,12 @@ struct CurveMod {
     CONNECT //connect two end points by adding intermediate points
   };
   OP op = OP::REPLACE;
-  // for verification.
+  // for verification and computing
+  // connectivity between neighboring curves.
   int curveId = 0;
   int endPoint = 0;
+  int nbrCurve = -1;
+  int nbrEndPoint = -1;
   // for new connection within the same patch
   int endPointConn = -1;
   std::vector<Vec3f> p;
@@ -82,3 +87,12 @@ public:
 /// @param curves in reference cube [-1,1].
 /// @return 
 std::vector<PatchModifier> GeneratePatchModifiers(const CurvePatch& curves);
+
+struct EndPointPair {
+  int p1 = -1;
+  int p2 = -1;
+  EndPointPair(int a, int b) :p1(a), p2(b) {}
+};
+
+std::vector<EndPointPair> FindOppositePairsX(const CurvePatch& patch);
+std::vector<EndPointPair> FindOppositePairsY(const CurvePatch& patch);
