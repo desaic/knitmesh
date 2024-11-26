@@ -881,9 +881,6 @@ std::vector<PatchModifier> GeneratePatchModifiers(const CurvePatch& curves) {
     }
   }
 
-  Array2D8u hasPair(4, 4);
-  hasPair.Fill(0);
-
   for (int myEdge = 0; myEdge < 4; myEdge++) {
     for (int neighborEdge = myEdge; neighborEdge < 4; neighborEdge++) {
       //rotate this curve patch so that edge i is facing down.
@@ -936,17 +933,34 @@ std::vector<PatchModifier> GeneratePatchModifiers(const CurvePatch& curves) {
         mod.curveMods = nbrMod.curveMods;
         mods.push_back(mod);
       }
-
-      hasPair(myEdge, neighborEdge) = 1;
-      hasPair(neighborEdge, myEdge) = 1;
     }
-  }
-
-  for (size_t i = 0; i < hasPair.GetSize()[1]; i++) {
-    for (size_t j = 0; j < hasPair.GetSize()[0]; j++) {
-      std::cout << int(hasPair(j,i)) << " ";
-    }
-    std::cout << "\n";
   }
   return mods;
+}
+
+void SaveLongCurvesObj(const std::string& outFile, const std::vector<std::vector<Vec3f> >& longCurves) {
+  std::ofstream out(outFile);
+  size_t ptCount = 0;
+  for (size_t i = 0; i < longCurves.size(); i++) {
+    for (size_t j = 0; j < longCurves[i].size(); j++) {
+      const Vec3f& v = longCurves[i][j];
+      out << "v " << v[0] << " " << v[1] << " " << v[2] << "\n";
+    }
+    for (size_t j = 0; j < longCurves[i].size() - 1; j++) {
+      const Vec3f& v = longCurves[i][j];
+      out << "l " << (j + 1 + ptCount) << " " << (j + 2 + ptCount) << "\n";
+    }
+    ptCount += longCurves[i].size();
+  }
+}
+void SaveLongCurvesTxt(const std::string& outFile, const std::vector<std::vector<Vec3f> >& longCurves) {
+  std::ofstream out(outFile);
+  out << longCurves.size() << "\n";
+  for (size_t i = 0; i < longCurves.size(); i++) {
+    out << longCurves[i].size() << "\n";
+    for (size_t j = 0; j < longCurves[i].size(); j++) {
+      const Vec3f& v = longCurves[i][j];
+      out << "v " << v[0] << " " << v[1] << " " << v[2] << "\n";
+    }
+  }
 }

@@ -344,7 +344,7 @@ std::vector< std::vector<Vec3f> > LinkCurves(const std::vector<CurvePatch>& patc
     
     int curveId = conns[i].curveId;
     int face = conns[i].faceId;
-    std::vector<Vec3f> curve = patches[face].c[curveId];
+    std::vector<Vec3f> curve;
     int startConn = ConnPoint::Id(face, curveId, CurvesPerPatch, 0);
     int endConn = ConnPoint::Id(face, curveId, CurvesPerPatch, 1);
     visited[startConn] = 1;
@@ -358,6 +358,7 @@ std::vector< std::vector<Vec3f> > LinkCurves(const std::vector<CurvePatch>& patc
       int cid = pt.curveId;
       const std::vector<Vec3f>& nbrCurve = patches[f].c[cid];
       int direction = pt.endPoint % 2;
+      visited[nbrEndPoint] = 1;
       if (direction == 0) {
         curve.insert(curve.end(), nbrCurve.begin(), nbrCurve.end());
       }
@@ -366,12 +367,14 @@ std::vector< std::vector<Vec3f> > LinkCurves(const std::vector<CurvePatch>& patc
         std::reverse(rev.begin(), rev.end());
         curve.insert(curve.end(), rev.begin(), rev.end());
       }
-
-      nbrEndPoint = conns[nbrEndPoint].neighborId;
+      int otherEnd = 1 - direction;
+      int connId = ConnPoint::Id(f, cid, CurvesPerPatch, otherEnd);
+      visited[connId] = 1;
+      nbrEndPoint = conns[connId].neighborId;
     }
     std::reverse(curve.begin(), curve.end());
-
-
+    std::vector<Vec3f> thisCurve = patches[face].c[curveId];
+    curve.insert(curve.end(), thisCurve.begin(), thisCurve.end());
     nbrEndPoint = conns[endConn].neighborId;
     while (nbrEndPoint >= 0 && (!visited[nbrEndPoint])) {
       const auto& pt = conns[nbrEndPoint];
@@ -379,6 +382,7 @@ std::vector< std::vector<Vec3f> > LinkCurves(const std::vector<CurvePatch>& patc
       int cid = pt.curveId;
       const std::vector<Vec3f>&nbrCurve = patches[f].c[cid];
       int direction = pt.endPoint % 2;
+      visited[nbrEndPoint] = 1;
       if (direction == 0) {
         curve.insert(curve.end(), nbrCurve.begin(), nbrCurve.end());
       }
@@ -387,8 +391,10 @@ std::vector< std::vector<Vec3f> > LinkCurves(const std::vector<CurvePatch>& patc
         std::reverse(rev.begin(), rev.end());
         curve.insert(curve.end(), rev.begin(), rev.end());
       }
-
-      nbrEndPoint = conns[nbrEndPoint].neighborId;
+      int otherEnd = 1 - direction;
+      int connId = ConnPoint::Id(f, cid, CurvesPerPatch, otherEnd);
+      visited[connId] = 1;
+      nbrEndPoint = conns[connId].neighborId;
     }
     
     curves.push_back(curve);
@@ -530,20 +536,7 @@ std::vector<CurvePatch> PutCurvesOnLabeledMesh(const CurvePatch& patchin,
 
   std::vector< std::vector<Vec3f> > longCurves = LinkCurves(faceCurves,
     conns);
-  
-  std::ofstream out("F:/meshes/stitch/longCurves.obj");
-  size_t ptCount = 0;
-  for (size_t i = 0; i < longCurves.size(); i++) {
-    for (size_t j = 0; j < longCurves[i].size(); j++) {
-      const Vec3f & v = longCurves[i][j];
-      out << "v " << v[0] << " " << v[1] << " " << v[2] << "\n";
-    }
-    for (size_t j = 0; j < longCurves[i].size() - 1; j++) {
-      const Vec3f& v = longCurves[i][j];
-      out << "l " << (j + 1 + ptCount) << " " << (j + 2 + ptCount) << "\n";
-    }
-    ptCount += longCurves[i].size();
-  }
+  SaveLongCurvesTxt("F:/meshes/stitch/longCurves.txt", longCurves);
 
   return faceCurves;
 }
