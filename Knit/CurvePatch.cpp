@@ -955,12 +955,12 @@ void SaveLongCurvesObj(const std::string& outFile, const std::vector<std::vector
 }
 void SaveLongCurvesTxt(const std::string& outFile, const std::vector<std::vector<Vec3f> >& longCurves) {
   std::ofstream out(outFile);
-  out << longCurves.size() << "\n";
+  out << "num_curves " << longCurves.size() << "\n";
   for (size_t i = 0; i < longCurves.size(); i++) {
     out << longCurves[i].size() << "\n";
     for (size_t j = 0; j < longCurves[i].size(); j++) {
       const Vec3f& v = longCurves[i][j];
-      out << "v " << v[0] << " " << v[1] << " " << v[2] << "\n";
+      out << v[0] << " " << v[1] << " " << v[2] << "\n";
     }
   }
 }

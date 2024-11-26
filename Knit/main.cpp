@@ -537,6 +537,7 @@ std::vector<CurvePatch> PutCurvesOnLabeledMesh(const CurvePatch& patchin,
   std::vector< std::vector<Vec3f> > longCurves = LinkCurves(faceCurves,
     conns);
   SaveLongCurvesTxt("F:/meshes/stitch/longCurves.txt", longCurves);
+  SaveLongCurvesObj("F:/meshes/stitch/longCurves.obj", longCurves);
 
   return faceCurves;
 }
@@ -563,6 +564,48 @@ void ComputeVertNormals(HalfEdgeMesh& hem) {
   }
 }
 
+void DrawSphere(Array3D8u& grid, const Vec3f& center, float radius, float voxRes) {
+  Vec3u startIndex, endIndex;
+  for (unsigned d = 0; d < 3; d++) {
+    int v0 = std::max(int((center[d] - radius)/voxRes), 0);
+    int v1 = std::max(int((center[d] + radius)/voxRes) + 1, 1);
+    v1 = std::min( int(grid.GetSize()[d]) - 1, v1);
+    startIndex[d] = v0;
+    endIndex[d] = v1;
+  }
+  for(unsigned z = 0;z
+}
+
+void SaveBoundingMesh() {
+  Array3D8u grid;
+  CurvePatch patch;
+  patch = LoadCurvePatch("F:/meshes/stitch/longCurves.txt");
+  std::cout << "loaded " << patch.size() << " curves\n";
+  BBox box;
+  for (size_t i = 0; i < patch.size(); i++) {
+    BBox b;
+    ComputeBBox(patch.c[i], b);
+    box.Merge(b);
+  }
+  std::cout << box.vmin[0] << " " << box.vmin[1] << " " << box.vmin[2] << "\n";
+  float yarnRad = 1.0f;
+  box.vmin += Vec3f(yarnRad);
+  box.vmax += Vec3f(yarnRad);
+  float voxRes = 0.4f;
+  Vec3f boxSize = box.vmax - box.vmin;
+  Vec3u gridSize(boxSize[0] / voxRes, boxSize[1]/voxRes, boxSize[2]/voxRes);
+  gridSize += Vec3u(1);
+  grid.Allocate(gridSize, 0);
+  for (size_t c = 0; c < patch.size(); c++) {
+    for (size_t i = 0; i < patch.c[c].size(); i++) {      
+      Vec3f center = patch.c[c][i] - box.vmin;
+      DrawSphere(grid, center, yarnRad, voxRes);
+    }
+  }
+  Vec3f voxResOut(voxRes);
+  SaveVolAsObjMesh("F:/meshes/stitch/boundingVol.obj", grid, (float*)(&voxResOut), 1);
+}
+
 int main(int argc, char** argv) {
   if (argc < 2) {
     std::cout << "Usage: stitcher meshFile.obj\n";
@@ -583,7 +626,7 @@ int main(int argc, char** argv) {
       LoadCurvePatch("F:/github/knitmesh/Data/scaled_patch.txt");
   std::vector<PatchModifier> mods = GeneratePatchModifiers(curves);
 
-  std::vector<CurvePatch> meshCurves = PutCurvesOnLabeledMesh(curves, hem, mods);
-
+  //std::vector<CurvePatch> meshCurves = PutCurvesOnLabeledMesh(curves, hem, mods);
+  SaveBoundingMesh();
   return 0;
 }
