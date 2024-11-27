@@ -573,7 +573,17 @@ void DrawSphere(Array3D8u& grid, const Vec3f& center, float radius, float voxRes
     startIndex[d] = v0;
     endIndex[d] = v1;
   }
-  for(unsigned z = 0;z
+  for (unsigned z = startIndex[2]; z <= endIndex[2]; z++) {
+    for (unsigned y = startIndex[1]; y <= endIndex[1]; y++) {
+      for (unsigned x = startIndex[0]; x <= endIndex[0]; x++) {
+        Vec3f voxCenter = voxRes * (Vec3f(x, y, z) + Vec3f(0.5f));
+        float dist = (voxCenter - center).norm();
+        if (dist < radius) {
+          grid(x, y, z) = 1;
+        }
+      }
+    }
+  }
 }
 
 void SaveBoundingMesh() {
@@ -588,7 +598,7 @@ void SaveBoundingMesh() {
     box.Merge(b);
   }
   std::cout << box.vmin[0] << " " << box.vmin[1] << " " << box.vmin[2] << "\n";
-  float yarnRad = 1.0f;
+  float yarnRad = 0.9f;
   box.vmin += Vec3f(yarnRad);
   box.vmax += Vec3f(yarnRad);
   float voxRes = 0.4f;
@@ -603,7 +613,7 @@ void SaveBoundingMesh() {
     }
   }
   Vec3f voxResOut(voxRes);
-  SaveVolAsObjMesh("F:/meshes/stitch/boundingVol.obj", grid, (float*)(&voxResOut), 1);
+  SaveVolAsObjMesh("F:/meshes/stitch/boundingVol.obj", grid, (float*)(&voxResOut), (float*)(&box.vmin), 1);
 }
 
 int main(int argc, char** argv) {
