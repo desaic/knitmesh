@@ -3,6 +3,7 @@
 #include <deque>
 #include <fstream>
 #include <iostream>
+#include <sstream>
 #include <map>
 
 #include "Array2D.h"
@@ -201,6 +202,30 @@ CurvePatch LoadCurvePatch(const std::string& filename) {
   }
   return curves;
 }
+
+CurvePatch LoadLongCurves(const std::string& filename) {
+  std::ifstream in(filename);
+  if (!in.good()) {
+    return CurvePatch();
+  }
+  size_t numCurves;
+  std::string token;
+  in >> numCurves;
+  CurvePatch curves(numCurves);
+  for (size_t i = 0; i < numCurves; i++) {
+    size_t numPoints;
+    int isLoop = 0;
+    in >> isLoop >> numPoints;
+    curves[i].resize(numPoints);
+    for (size_t j = 0; j < numPoints; j++) {
+      Vec3f p;
+      in >> p[0] >> p[1] >> p[2];
+      curves[i][j] = p;
+    }
+  }
+  return curves;
+}
+
 
 void DrawCurvePatch(const CurvePatch& curvePatch) {
   Array2D8u image(800,800);
@@ -956,10 +981,66 @@ void SaveLongCurvesObj(const std::string& outFile, const std::vector<std::vector
 void SaveLongCurvesTxt(const std::string& outFile, const std::vector<std::vector<Vec3f> >& longCurves) {
   std::ofstream out(outFile);
   out << "num_curves " << longCurves.size() << "\n";
+  float delta = 0.25;
   for (size_t i = 0; i < longCurves.size(); i++) {
-    out << longCurves[i].size() << "\n";
+    int isLoop = 0;
+    float dist = (longCurves[i][0] - longCurves[i].back()).norm();
+    if (dist < delta) {
+      isLoop = 1;
+    }
+    if (isLoop == 0) {
+      std::cout << "not a loop?\n";
+    }
+    out <<isLoop<<" "<< longCurves[i].size() << "\n";
     for (size_t j = 0; j < longCurves[i].size(); j++) {
       const Vec3f& v = longCurves[i][j];
+      out << v[0] << " " << v[1] << " " << v[2] << "\n";
+    }
+  }
+}
+
+void SaveLongCurvesTxtSubSample(const std::string& outFile, const std::vector<std::vector<Vec3f> >& longCurves) {
+  std::ofstream out(outFile);
+  out << longCurves.size() << "\n";
+  float delta = 0.25;
+  const float DefaultSampleDist = 1.0f;
+  for (size_t i = 0; i < longCurves.size(); i++) {
+    float sampleDist = DefaultSampleDist;
+    int isLoop = 0;
+    float dist = (longCurves[i][0] - longCurves[i].back()).norm();
+    if (dist < delta) {
+      isLoop = 1;
+    }
+    if (isLoop == 0) {
+      std::cout << "not a loop?\n";
+    }
+    
+    float curveLen = 0;
+    for (size_t j = 1; j < longCurves[i].size(); j++) {
+      curveLen += (longCurves[i][j] - longCurves[i][j - 1]).norm();
+    }
+    if (i == 108) {
+      std::cout << "debug " << curveLen << "\n";
+    }
+    if (curveLen / sampleDist < 5) {
+      sampleDist = curveLen / 6;
+    }
+
+    Vec3f prevPt = longCurves[i][0];
+    std::vector<Vec3f> sample(1, prevPt);
+    for (size_t j = 1; j < longCurves[i].size() - 1; j++) {
+      const Vec3f& v = longCurves[i][j];
+      if ((v - prevPt).norm() >= sampleDist) {
+        sample.push_back(v);
+        prevPt = v;
+      }
+    }
+    sample.push_back(longCurves[i].back());
+    if (sample.size() < 4) {
+      std::cout << "invalid curve\n";
+    }
+    out << isLoop << " " << sample.size() << "\n";
+    for (const auto& v : sample) {
       out << v[0] << " " << v[1] << " " << v[2] << "\n";
     }
   }

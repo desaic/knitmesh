@@ -94,6 +94,10 @@ void FloodLabels(HalfEdgeMesh& hem, size_t fi) {
     std::vector<unsigned> orientVote(4, 0);
     for (unsigned i = 0; i < numEdges; i++) {
       unsigned twinIndex = he.twin;
+      if (twinIndex == HalfEdge::INVALID_IDX) {
+        he = hem.he[he.next];
+        continue;
+      }
       unsigned neighborFace = hem.edgeFaceIndex[twinIndex];
       int neighborLabel = hem.faceLabels[neighborFace];
       if (neighborLabel < 0) {
@@ -536,8 +540,8 @@ std::vector<CurvePatch> PutCurvesOnLabeledMesh(const CurvePatch& patchin,
 
   std::vector< std::vector<Vec3f> > longCurves = LinkCurves(faceCurves,
     conns);
-  SaveLongCurvesTxt("F:/meshes/stitch/longCurves.txt", longCurves);
-  SaveLongCurvesObj("F:/meshes/stitch/longCurves.obj", longCurves);
+  SaveLongCurvesTxtSubSample("F:/meshes/shoe/r_curves1.txt", longCurves);
+  SaveLongCurvesObj("F:/meshes/shoe/r_curves1.obj", longCurves);
 
   return faceCurves;
 }
@@ -589,7 +593,7 @@ void DrawSphere(Array3D8u& grid, const Vec3f& center, float radius, float voxRes
 void SaveBoundingMesh() {
   Array3D8u grid;
   CurvePatch patch;
-  patch = LoadCurvePatch("F:/meshes/stitch/longCurves.txt");
+  patch = LoadLongCurves("F:/meshes/shoe/r_curves1.txt");
   std::cout << "loaded " << patch.size() << " curves\n";
   BBox box;
   for (size_t i = 0; i < patch.size(); i++) {
@@ -598,8 +602,8 @@ void SaveBoundingMesh() {
     box.Merge(b);
   }
   std::cout << box.vmin[0] << " " << box.vmin[1] << " " << box.vmin[2] << "\n";
-  float yarnRad = 0.9f;
-  box.vmin += Vec3f(yarnRad);
+  float yarnRad = 1.2f;
+  box.vmin += Vec3f(-yarnRad);
   box.vmax += Vec3f(yarnRad);
   float voxRes = 0.4f;
   Vec3f boxSize = box.vmax - box.vmin;
@@ -613,7 +617,7 @@ void SaveBoundingMesh() {
     }
   }
   Vec3f voxResOut(voxRes);
-  SaveVolAsObjMesh("F:/meshes/stitch/boundingVol.obj", grid, (float*)(&voxResOut), (float*)(&box.vmin), 1);
+  SaveVolAsObjMesh("F:/meshes/shoe/r_boundingVol.obj", grid, (float*)(&voxResOut), (float*)(&box.vmin), 1);
 }
 
 int main(int argc, char** argv) {
@@ -636,7 +640,7 @@ int main(int argc, char** argv) {
       LoadCurvePatch("F:/github/knitmesh/Data/scaled_patch.txt");
   std::vector<PatchModifier> mods = GeneratePatchModifiers(curves);
 
-  //std::vector<CurvePatch> meshCurves = PutCurvesOnLabeledMesh(curves, hem, mods);
+  std::vector<CurvePatch> meshCurves = PutCurvesOnLabeledMesh(curves, hem, mods);
   SaveBoundingMesh();
   return 0;
 }
